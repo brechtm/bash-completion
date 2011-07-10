@@ -152,6 +152,21 @@ _umount()
 } &&
 complete -F _umount -o dirnames umount
 
+# Haiku unmount(8) completion.
+#
+have unmount &&
+_unmount()
+{
+    local cur prev words cword
+    _init_completion || return
+
+    local IFS=$'\n'
+    COMPREPLY=( $( compgen -W '$( df | cut -d" " -f 1 | tail -n+3 )' -- "$cur" ) )
+
+    return 0
+} &&
+complete -F _unmount -o dirnames unmount
+
 # Local variables:
 # mode: shell-script
 # sh-basic-offset: 4

@@ -83,6 +83,42 @@ _route()
 } &&
 complete -F _route route
 
+# Haiku route(8) completion
+#
+[ $UNAME = Haiku ] && have route &&
+_route()
+{
+	local cur prev
+
+	COMPREPLY=()
+	cur=${COMP_WORDS[COMP_CWORD]}
+	prev=${COMP_WORDS[COMP_CWORD-1]}
+
+	if [ "$prev" = dev ]; then
+	    COMPREPLY=( $( ifconfig -a | sed -ne 's|^\('$cur'[^ ]*\).*$|\1|p' ))
+	    return 0
+	fi
+
+	COMPREPLY=( $( compgen -W 'add delete list -local -host netmask mtu \
+				   -reject \
+				   default gw' -- $cur ) )
+
+	COMPREPLY=( $( echo " ${COMP_WORDS[@]}" | \
+		       (while read -d ' ' i; do
+			   [ "$i" == "" ] && continue
+			   # flatten array with spaces on either side,
+			   # otherwise we cannot grep on word
+			   # boundaries of first and last word
+			   COMPREPLY=" ${COMPREPLY[@]} "
+			   # remove word from list of completions
+			   COMPREPLY=( ${COMPREPLY/ $i / } )
+			done
+		       echo ${COMPREPLY[@]})
+		  ) )
+	return 0
+} && 
+complete -F _route route
+
 have ether-wake &&
 _ether_wake()
 {

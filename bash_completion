@@ -106,6 +106,13 @@ complete -b builtin
 # This function checks whether we have a given program on the system.
 # No need for bulky functions in memory if we don't.
 #
+[ $UNAME = Haiku ] &&
+have()
+{
+    unset -v have
+    type $1 &>/dev/null &&
+    have="yes"
+} ||
 have()
 {
     unset -v have
@@ -806,6 +813,12 @@ _mac_addresses()
 
 # This function completes on configured network interfaces
 #
+[ $UNAME = Haiku ] &&
+_configured_interfaces()
+{
+    COMPREPLY=( $( compgen -W "$( ifconfig | egrep '^[/:alpha:]' \
+        | cut -f 1 )" -- "$cur" ) )
+} ||
 _configured_interfaces()
 {
     if [ -f /etc/debian_version ]; then
@@ -832,6 +845,13 @@ _configured_interfaces()
 
 # Local IP addresses.
 #
+[ $UNAME = Haiku ] &&
+_ip_addresses()
+{
+    COMPREPLY+=( $( compgen -W \
+        "$( ifconfig | egrep 'inet addr' | cut -d' ' -f 3 | cut -d',' -f 1 )" \
+        -- "$cur" ) )
+} ||
 _ip_addresses()
 {
     COMPREPLY+=( $( compgen -W \
@@ -852,6 +872,13 @@ _kernel_versions()
 # -a: restrict to active interfaces only
 # -w: restrict to wireless interfaces only
 #
+[ $UNAME = Haiku ] &&
+_available_interfaces()
+{
+    # TODO: handle -a -w
+    # TODO: /boot/common/settings/network/interfaces
+    _configured_interfaces
+} ||
 _available_interfaces()
 {
     local cmd
@@ -952,51 +979,76 @@ _expand()
 }
 
 # This function completes on process IDs.
-# AIX and Solaris ps prefers X/Open syntax.
-[[ $UNAME == @(SunOS|AIX) ]] &&
-_pids()
-{
-    COMPREPLY=( $( compgen -W '$( command ps -efo pid | sed 1d )' -- "$cur" ))
-} ||
-_pids()
-{
-    COMPREPLY=( $( compgen -W '$( command ps axo pid= )' -- "$cur" ) )
-}
+case ${UNAME} in
+    SunOS|AIX)
+        # AIX and Solaris ps prefers X/Open syntax.
+        _pids()
+        {
+            COMPREPLY=( $( compgen -W '$( command ps -efo pid | sed 1d )' -- "$cur" ))
+        } ;;
+    Haiku)
+        _pids()
+        {
+            COMPREPLY=( $( compgen -W "$( command ps | awk 'NR>1 {print $(NF-3)}' )" -- $cur ) )
+        } ;;
+    *)
+        _pids()
+        {
+            COMPREPLY=( $( compgen -W '$( command ps axo pid= )' -- "$cur" ) )
+        } ;;
+esac
 
 # This function completes on process group IDs.
-# AIX and SunOS prefer X/Open, all else should be BSD.
-[[ $UNAME == @(SunOS|AIX) ]] &&
-_pgids()
-{
-    COMPREPLY=( $( compgen -W '$( command ps -efo pgid | sed 1d )' -- "$cur" ))
-} ||
-_pgids()
-{
-    COMPREPLY=( $( compgen -W '$( command ps axo pgid= )' -- "$cur" ))
-}
+case ${UNAME} in
+    SunOS|AIX)
+        # AIX and Solaris ps prefers X/Open syntax.
+        _pgids()
+        {
+            COMPREPLY=( $( compgen -W '$( command ps -efo pgid | sed 1d )' -- "$cur" ))
+        } ;;
+    Haiku)
+        _pgids()
+        {
+            COMPREPLY=( $( compgen -W "$( command ps | awk 'NR>1 {print $(NF-1)}' )" -- $cur ) )
+        } ;;
+    *)
+        _pgids()
+        {
+            COMPREPLY=( $( compgen -W '$( command ps axo pgid= )' -- "$cur" ))
+        } ;;
+esac
 
 # This function completes on process names.
-# AIX and SunOS prefer X/Open, all else should be BSD.
-[[ $UNAME == @(SunOS|AIX) ]] &&
-_pnames()
-{
-    COMPREPLY=( $( compgen -X '<defunct>' -W '$( command ps -efo comm | \
-        sed -e 1d -e "s:.*/::" -e "s/^-//" | sort -u )' -- "$cur" ) )
-} ||
-_pnames()
-{
-    # FIXME: completes "[kblockd/0]" to "0". Previously it was completed
-    # to "kblockd" which isn't correct either. "kblockd/0" would be
-    # arguably most correct, but killall from psmisc 22 treats arguments
-    # containing "/" specially unless -r is given so that wouldn't quite
-    # work either. Perhaps it'd be best to not complete these to anything
-    # for now.
-    # Not using "ps axo comm" because under some Linux kernels, it
-    # truncates command names (see e.g. http://bugs.debian.org/497540#19)
-    COMPREPLY=( $( compgen -X '<defunct>' -W '$( command ps axo command= | \
-        sed -e "s/ .*//" -e "s:.*/::" -e "s/:$//" -e "s/^[[(-]//" \
-            -e "s/[])]$//" | sort -u )' -- "$cur" ) )
-}
+case ${UNAME} in
+    SunOS|AIX)
+        # AIX and Solaris ps prefers X/Open syntax.
+        _pnames()
+        {
+            COMPREPLY=( $( compgen -X '<defunct>' -W '$( command ps -efo comm | \
+                sed -e 1d -e "s:.*/::" -e "s/^-//" | sort -u )' -- "$cur" ) )
+        } ;;
+    Haiku)
+        _pnames()
+        {
+            COMPREPLY=( $( compgen -W "$( command ps | awk 'NR>1 { print $1 }' | \
+                sed -e "s:.*/::" -e "s/^-//" | sort -u )" -- "$cur" ) )
+        } ;;
+    *)
+        _pnames()
+        {
+            # FIXME: completes "[kblockd/0]" to "0". Previously it was completed
+            # to "kblockd" which isn't correct either. "kblockd/0" would be
+            # arguably most correct, but killall from psmisc 22 treats arguments
+            # containing "/" specially unless -r is given so that wouldn't quite
+            # work either. Perhaps it'd be best to not complete these to anything
+            # for now.
+            # Not using "ps axo comm" because under some Linux kernels, it
+            # truncates command names (see e.g. http://bugs.debian.org/497540#19)
+            COMPREPLY=( $( compgen -X '<defunct>' -W '$( command ps axo command= | \
+                sed -e "s/ .*//" -e "s:.*/::" -e "s/:$//" -e "s/^[[(-]//" \
+                    -e "s/[])]$//" | sort -u )' -- "$cur" ) )
+        } ;;
+esac
 
 # This function completes on user IDs
 #
@@ -1348,7 +1400,7 @@ _known_hosts_real()
         config+=( "$configfile" )
     else
         for i in /etc/ssh/ssh_config "${HOME}/.ssh/config" \
-            "${HOME}/.ssh2/config"; do
+            "${HOME}/.ssh2/config" "$HOME/config/settings/ssh/config"; do
             [ -r $i ] && config+=( "$i" )
         done
     fi
@@ -1376,7 +1428,7 @@ _known_hosts_real()
         # Global and user known_hosts files
         for i in /etc/ssh/ssh_known_hosts /etc/ssh/ssh_known_hosts2 \
             /etc/known_hosts /etc/known_hosts2 ~/.ssh/known_hosts \
-            ~/.ssh/known_hosts2; do
+            ~/.ssh/known_hosts2 ~/config/settings/ssh/known_hosts; do
             [ -r $i ] && kh+=( $i )
         done
         for i in /etc/ssh2/knownhosts ~/.ssh2/hostkeys; do
